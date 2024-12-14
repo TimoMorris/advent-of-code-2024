@@ -306,3 +306,6 @@ fabric.properties
 .idea/misc.xml
 .idea/other.xml
 .idea/inspectionProfiles/
+
+# Advent of Code puzzle inputs
+/src/inputs/

@@ -150,7 +150,7 @@ class EmptyBlock(Block):
 
 
 class FileSystem:
-    """"""
+    """A filesystem comprising blocks of memory with files and spaces."""
     def __init__(self, disk_map: str):
         all_blocks, file_blocks = self.create_blocks(disk_map)
         self.head, self.tail = self.link_blocks(all_blocks)

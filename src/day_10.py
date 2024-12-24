@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
 
 from utilities.grid import Cell, Grid
+from utilities.timer import timer
 
 
 def get_day_10_input() -> list[list[int]]:
@@ -67,6 +68,7 @@ class Map:
         return [point for point in self.points.values() if point.height == height]
 
 
+@timer
 def day_10a(grid: list[list[int]]) -> int:
     topographic_map = Map(grid)
 
@@ -111,6 +113,7 @@ class Trail:
         return str("->".join(f"({point[0]}, {point[1]})" for point in self.route))
 
 
+@timer
 def day_10b(grid: list[list[int]]) -> int:
     topographic_map = Map(grid)
 
@@ -153,6 +156,7 @@ class MapCell(Cell):
         return f"MapCell({self.row}, {self.col}) height: {self.height}"
 
 
+@timer
 def day_10a_with_grid(grid: list[list[int]]) -> int:
     topographic_map = Grid[MapCell].from_lists(grid, MapCell)
 
@@ -170,6 +174,7 @@ def day_10a_with_grid(grid: list[list[int]]) -> int:
     return trailhead_score_total
 
 
+@timer
 def day_10b_with_grid(grid: list[list[int]]) -> int:
     topographic_map = Grid[MapCell].from_lists(grid, MapCell)
 

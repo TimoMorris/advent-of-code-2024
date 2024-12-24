@@ -1,5 +1,7 @@
 from dataclasses import dataclass, field
 
+from utilities.grid import Cell, Grid
+
 
 def get_day_10_input() -> list[list[int]]:
     with open("inputs/input_10.txt") as f:
@@ -92,14 +94,21 @@ class Trail:
         self.route: list[tuple[int, int]] = [(start_point.row, start_point.col)]
 
     def add(self, point: Point) -> "Trail":
+        """Add a point to this trail and return it."""
         self.route.append((point.row, point.col))
         return self
+
+    def extended_with(self, point: Point) -> "Trail":
+        """Return a new copy of this trail with the given point added to it."""
+        new_trail = Trail.__new__(Trail)
+        new_trail.route = self.route + [(point.row, point.col)]
+        return new_trail
 
     def __hash__(self):
         return hash(tuple(self.route))
 
     def __repr__(self):
-        return str(self.route)
+        return str("->".join(f"({point[0]}, {point[1]})" for point in self.route))
 
 
 def day_10b(grid: list[list[int]]) -> int:
@@ -122,9 +131,69 @@ def day_10b(grid: list[list[int]]) -> int:
     return trailhead_rating_total
 
 
+class MapCell(Cell):
+    """A cell on a grid representing a map.
+
+    Attributes:
+        height: the height of this cell on the map
+        reachable_summits: set of summits that can be reached from this cell
+        trails: set of different trails from this cell to any summit(s)
+
+    """
+    def __init__(self, row: int, col: int, height: int | str, *, grid=None):
+        super().__init__(row, col, height, grid=grid)
+        self.reachable_summits: set["Point"] = set()
+        self.trails: set[Trail] = set()
+
+    @property
+    def height(self) -> int:
+        return self.value
+
+    def __repr__(self):
+        return f"MapCell({self.row}, {self.col}) height: {self.height}"
+
+
+def day_10a_with_grid(grid: list[list[int]]) -> int:
+    topographic_map = Grid[MapCell].from_lists(grid, MapCell)
+
+    summits = list(topographic_map.get_cells(lambda cell: cell.height == 9))
+    for summit in summits:
+        summit.reachable_summits.add(summit)
+
+    topographic_map.connect_cells(
+        starting_cells=summits,
+        can_connect=lambda cell, parent: cell.height == parent.height - 1,
+        connect=lambda cell, parent: cell.reachable_summits.update(parent.reachable_summits),
+    )
+
+    trailhead_score_total = sum(len(point.reachable_summits) for point in topographic_map.get_cells(lambda cell: cell.height == 0))
+    return trailhead_score_total
+
+
+def day_10b_with_grid(grid: list[list[int]]) -> int:
+    topographic_map = Grid[MapCell].from_lists(grid, MapCell)
+
+    summits = list(topographic_map.get_cells(lambda cell: cell.height == 9))
+    for summit in summits:
+        summit.trails.add(Trail(summit))
+
+    topographic_map.connect_cells(
+        starting_cells=summits,
+        can_connect=lambda cell, parent: cell.height == parent.height - 1,
+        connect=lambda cell, parent: cell.trails.update(trail.extended_with(cell) for trail in parent.trails)
+    )
+
+    trailhead_rating_total = sum(len(point.trails) for point in topographic_map.get_cells(lambda cell: cell.height == 0))
+    return trailhead_rating_total
+
+
 if __name__ == "__main__":
     day_10_input = get_day_10_input()
     answer_10a = day_10a(day_10_input)
     print(answer_10a)
+    answer_10a_with_grid = day_10a_with_grid(day_10_input)
+    print(answer_10a_with_grid)
     answer_10b = day_10b(day_10_input)
     print(answer_10b)
+    answer_10b_with_grid = day_10b_with_grid(day_10_input)
+    print(answer_10b_with_grid)

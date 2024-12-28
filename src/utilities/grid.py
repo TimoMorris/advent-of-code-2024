@@ -27,6 +27,15 @@ class Cell[TValue]:
         row_offset, col_offset = other
         return self._grid.try_get_cell(self.row + row_offset, self.col + col_offset)
 
+    def __sub__(self, other: Coordinates | Self) -> Self | Coordinates:
+        match other:
+            case tuple(row_offset, col_offset):
+                return self._grid.try_get_cell(self.row - row_offset, self.col - col_offset)
+            case Cell(row=row, col=col):
+                return tuple((self.row - row, self.col - col))
+            case _:
+                raise ValueError(f"Unsupported type for subtraction: {other.__class__.__name__}")
+
     def _get_offsetted_cells(self, offsets: list[Coordinates]) -> Iterable[Self]:
         for offset in offsets:
             if (offset_cell := self + offset) is not None:
@@ -75,6 +84,9 @@ class Grid[TCell]:
     def from_strings(cls, strings: Iterable[str], cell_class: Type[TCell] = Cell) -> "Grid":  # return type should be Self but bug in PyCharm
         """Create a grid from a list of strings."""
         return cls.from_lists(strings, cell_class=cell_class)
+
+    def __getitem__(self, item):
+        return self._cells[item]
 
     def try_get_cell(self, row, col):
         """Fetch the cell at the given row and column if it exists."""

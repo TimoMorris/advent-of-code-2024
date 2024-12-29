@@ -309,3 +309,5 @@ fabric.properties
 
 # Advent of Code puzzle inputs
 /src/inputs/
+/tests/inputs/
+/tests/*_params.py

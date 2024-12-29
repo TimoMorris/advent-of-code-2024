@@ -2,7 +2,7 @@ from collections import deque
 from enum import Enum
 from typing import Callable
 
-from utilities.grid import Cell, Coordinates, Grid
+from utilities.grid import Cell, Coordinates, Grid, STRAIGHT_VECTORS
 from utilities.timer import timer
 
 
@@ -48,9 +48,33 @@ class Farm(Grid[Plot]):
         return set(self._cells.values())
 
 
+
+class Boundary:
+    def __init__(self, border_pieces: list[tuple[Coordinates, Coordinates]]):
+        self.border_pieces: list[tuple[Coordinates, Coordinates]] = border_pieces
+
+    @property
+    def side_count(self) -> int:
+        __, start_direction = self.border_pieces[0]
+
+        current_direction = start_direction
+        sides = 1
+        for plot, direction in self.border_pieces[1:]:
+            if direction != current_direction:
+                sides += 1
+                current_direction = direction
+
+        if current_direction == start_direction:
+            sides -= 1  # adjust if finished and started on same side (will have double-counted it)
+
+        return sides
+
+
+
 class Region:
-    def __init__(self, plots: set[Plot]):
+    def __init__(self, plots: set[Plot], boundaries: list[Boundary] | None = None):
         self.plots: set[Plot] = plots
+        self.boundaries: list[Boundary] = boundaries or []
 
     @property
     def area(self) -> int:
@@ -63,6 +87,14 @@ class Region:
     @property
     def price(self) -> int:
         return self.area * self.perimeter
+
+    @property
+    def sides(self) -> int:
+        return sum(boundary.side_count for boundary in self.boundaries)
+
+    @property
+    def price_with_discount(self) -> int:
+        return self.area * self.sides
 
 
 def is_part_of_region(new_plot: Plot, parent_plot: Plot) -> bool:
@@ -132,7 +164,92 @@ def day_12a(grid: list[str]):
     return sum(region.area * region.perimeter for region in regions)
 
 
+class BoundaryWalker:
+    def __init__(self, region, farm):
+        self.region = region
+        self.farm = farm
+
+    @staticmethod
+    def turn_right(direction: Coordinates) -> Coordinates:
+        idx = STRAIGHT_VECTORS.index(direction)
+        return STRAIGHT_VECTORS[(idx + 1) % 4]
+
+    @staticmethod
+    def turn_left(direction: Coordinates) -> Coordinates:
+        idx = STRAIGHT_VECTORS.index(direction)
+        return STRAIGHT_VECTORS[(idx - 1) % 4]
+
+    def walk(self) -> list[Boundary]:
+        unconnected_border_pieces = set((plot.coords, direction) for plot in self.region.plots for direction, side in plot.sides.items() if side == Side.BORDER)
+        boundaries = []
+
+        while unconnected_border_pieces:
+            starting_coords, starting_border = unconnected_border_pieces.pop()
+            starting_direction = self.turn_right(starting_border)
+            boundary = [(starting_coords, starting_border)]
+
+            current_plot = self.farm[starting_coords]
+            current_direction = starting_direction
+            current_left = starting_border
+
+            try:
+                while True:
+                    if current_plot.sides[current_direction] == Side.BORDER:
+                        border_piece = (current_plot.coords, current_direction)
+                        unconnected_border_pieces.remove(border_piece)
+                        boundary.append(border_piece)
+                        current_direction = self.turn_right(current_direction)
+                        current_left = self.turn_right(current_left)
+                        continue
+
+                    plot_ahead = current_plot + current_direction
+                    if plot_ahead.sides[current_left] == Side.BORDER:
+                        border_piece = (plot_ahead.coords, current_left)
+                        unconnected_border_pieces.remove(border_piece)
+                        boundary.append(border_piece)
+                        current_plot = plot_ahead
+                        continue
+
+                    plot_ahead_left = plot_ahead + current_left
+                    current_left_left = self.turn_left(current_left)
+                    if plot_ahead_left.sides[current_left_left] == Side.BORDER:
+                        border_piece = (plot_ahead_left.coords, current_left_left)
+                        unconnected_border_pieces.remove(border_piece)
+                        boundary.append(border_piece)
+                        current_plot = plot_ahead_left
+                        current_direction = current_left
+                        current_left = current_left_left
+                        continue
+
+                    raise ValueError("Unexpected border configuration encountered.")
+            except KeyError:  # got back to start and tried to remove same border again
+                boundaries.append(Boundary(boundary))
+        return boundaries
+
+
+@timer
+def day_12b(grid: list[str]):
+    farm = Farm.from_strings(grid, Plot)
+    unallocated_plots: set[Plot] = farm.plots
+
+    regions = []
+    while unallocated_plots:
+        region = find_region(unallocated_plots.copy())
+        regions.append(Region(region))
+        unallocated_plots -= region
+    mark_outer_border(farm)
+
+    for region in regions:
+        boundary_walker = BoundaryWalker(region, farm)
+        boundaries = boundary_walker.walk()
+        region.boundaries = boundaries
+
+    return sum(region.area * region.sides for region in regions)
+
+
 if __name__ == "__main__":
     day_12_input = get_day_12_input()
     answer_12a = day_12a(day_12_input)
     print(answer_12a)
+    answer_12b = day_12b(day_12_input)
+    print(answer_12b)

@@ -23,6 +23,10 @@ class Cell[TValue]:
         self.value: TValue = value
         self._grid: "Grid" = grid
 
+    @property
+    def coords(self) -> Coordinates:
+        return self.row, self.col
+
     def __add__(self, other: Coordinates) -> Self:
         row_offset, col_offset = other
         return self._grid.try_get_cell(self.row + row_offset, self.col + col_offset)

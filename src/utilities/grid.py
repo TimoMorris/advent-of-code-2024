@@ -103,6 +103,11 @@ class Grid[TCell]:
             if condition(cell):
                 yield cell
 
+    def all_cells(self) -> Iterable[TCell]:
+        """Get all cells in the grid."""
+        for cell in self._cells.values():
+            yield cell
+
     @staticmethod
     def connect_cells(
         starting_cells: list[TCell],

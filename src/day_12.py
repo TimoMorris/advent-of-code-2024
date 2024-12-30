@@ -48,27 +48,18 @@ class Farm(Grid[Plot]):
         return set(self._cells.values())
 
 
-
 class Boundary:
     def __init__(self, border_pieces: list[tuple[Coordinates, Coordinates]]):
         self.border_pieces: list[tuple[Coordinates, Coordinates]] = border_pieces
+        self.directions: list[Coordinates] = [direction for __, direction in self.border_pieces]
 
     @property
     def side_count(self) -> int:
-        __, start_direction = self.border_pieces[0]
-
-        current_direction = start_direction
-        sides = 1
-        for plot, direction in self.border_pieces[1:]:
-            if direction != current_direction:
+        sides = 0
+        for i in range(len(self.border_pieces)):
+            if self.directions[i - 1] != self.directions[i]:
                 sides += 1
-                current_direction = direction
-
-        if current_direction == start_direction:
-            sides -= 1  # adjust if finished and started on same side (will have double-counted it)
-
         return sides
-
 
 
 class Region:
@@ -149,9 +140,7 @@ def mark_outer_border(farm: Farm):
         farm[x, farm.height - 1].sides[0, 1] = Side.BORDER
 
 
-@timer
-def day_12a(grid: list[str]):
-    farm = Farm.from_strings(grid, Plot)
+def identify_regions(farm: Farm) -> list[Region]:
     unallocated_plots: set[Plot] = farm.plots
 
     regions = []
@@ -161,90 +150,114 @@ def day_12a(grid: list[str]):
         unallocated_plots -= region
     mark_outer_border(farm)
 
-    return sum(region.area * region.perimeter for region in regions)
+    return regions
+
+
+@timer
+def day_12a(grid: list[str]) -> int:
+    farm = Farm.from_strings(grid, Plot)
+    regions = identify_regions(farm)
+
+    return sum(region.price for region in regions)
 
 
 class BoundaryWalker:
     def __init__(self, region, farm):
         self.region = region
         self.farm = farm
+        self.unconnected_border_pieces = set(
+            (plot.coords, direction) for plot in self.region.plots for direction, side in plot.sides.items()
+            if side == Side.BORDER
+        )
+        self.boundaries = []
+        self.current_direction: Coordinates | None = None
+        self.current_plot: Plot | None = None
+        self.boundary: list[tuple[Coordinates, Coordinates]] = []
 
     @staticmethod
-    def turn_right(direction: Coordinates) -> Coordinates:
+    def rotate_clockwise(direction: Coordinates, turns=1) -> Coordinates:
         idx = STRAIGHT_VECTORS.index(direction)
-        return STRAIGHT_VECTORS[(idx + 1) % 4]
+        return STRAIGHT_VECTORS[(idx + turns) % 4]
 
     @staticmethod
-    def turn_left(direction: Coordinates) -> Coordinates:
+    def rotate_anticlockwise(direction: Coordinates, turns=1) -> Coordinates:
         idx = STRAIGHT_VECTORS.index(direction)
-        return STRAIGHT_VECTORS[(idx - 1) % 4]
+        return STRAIGHT_VECTORS[(idx - turns) % 4]
+
+    @property
+    def current_left(self) -> Coordinates:
+        return self.rotate_anticlockwise(self.current_direction)
+
+    def border_turns_right(self) -> tuple[Coordinates, Coordinates] | None:
+        if self.current_plot.sides[self.current_direction] == Side.BORDER:
+            border_piece = (self.current_plot.coords, self.current_direction)
+            return border_piece
+
+    def border_continues_ahead(self) ->  tuple[Coordinates, Coordinates] | None:
+        plot_ahead = self.current_plot + self.current_direction
+        if plot_ahead.sides[self.current_left] == Side.BORDER:
+            border_piece = (plot_ahead.coords, self.current_left)
+            return border_piece
+
+    def border_turns_left(self) ->  tuple[Coordinates, Coordinates] | None:
+        plot_ahead_left = self.current_plot + self.current_direction + self.current_left
+        current_left_left = self.rotate_anticlockwise(self.current_direction, 2)
+        if plot_ahead_left.sides[current_left_left] == Side.BORDER:
+            border_piece = (plot_ahead_left.coords, current_left_left)
+            return border_piece
+
+    def turn_right(self):
+        self.current_direction = self.rotate_clockwise(self.current_direction)
+
+    def move_ahead(self):
+        self.current_plot = self.current_plot + self.current_direction
+
+    def move_ahead_and_left(self):
+        self.current_plot = self.current_plot + self.current_direction + self.current_left
+        self.current_direction = self.current_left
+
+    def add_to_current_boundary(self, border_piece: tuple[Coordinates, Coordinates]) -> None:
+        self.unconnected_border_pieces.remove(border_piece)
+        self.boundary.append(border_piece)
 
     def walk(self) -> list[Boundary]:
-        unconnected_border_pieces = set((plot.coords, direction) for plot in self.region.plots for direction, side in plot.sides.items() if side == Side.BORDER)
-        boundaries = []
+        while self.unconnected_border_pieces:
+            starting_border_piece = self.unconnected_border_pieces.pop()
+            self.boundary = [starting_border_piece]
 
-        while unconnected_border_pieces:
-            starting_coords, starting_border = unconnected_border_pieces.pop()
-            starting_direction = self.turn_right(starting_border)
-            boundary = [(starting_coords, starting_border)]
+            starting_coords, starting_border = starting_border_piece
+            self.current_plot = self.farm[starting_coords]
+            self.current_direction = self.rotate_clockwise(starting_border)
 
-            current_plot = self.farm[starting_coords]
-            current_direction = starting_direction
-            current_left = starting_border
-
-            try:
-                while True:
-                    if current_plot.sides[current_direction] == Side.BORDER:
-                        border_piece = (current_plot.coords, current_direction)
-                        unconnected_border_pieces.remove(border_piece)
-                        boundary.append(border_piece)
-                        current_direction = self.turn_right(current_direction)
-                        current_left = self.turn_right(current_left)
-                        continue
-
-                    plot_ahead = current_plot + current_direction
-                    if plot_ahead.sides[current_left] == Side.BORDER:
-                        border_piece = (plot_ahead.coords, current_left)
-                        unconnected_border_pieces.remove(border_piece)
-                        boundary.append(border_piece)
-                        current_plot = plot_ahead
-                        continue
-
-                    plot_ahead_left = plot_ahead + current_left
-                    current_left_left = self.turn_left(current_left)
-                    if plot_ahead_left.sides[current_left_left] == Side.BORDER:
-                        border_piece = (plot_ahead_left.coords, current_left_left)
-                        unconnected_border_pieces.remove(border_piece)
-                        boundary.append(border_piece)
-                        current_plot = plot_ahead_left
-                        current_direction = current_left
-                        current_left = current_left_left
-                        continue
-
+            while True:
+                if border_piece := self.border_turns_right():
+                    self.turn_right()
+                elif border_piece := self.border_continues_ahead():
+                    self.move_ahead()
+                elif border_piece := self.border_turns_left():
+                    self.move_ahead_and_left()
+                else:
                     raise ValueError("Unexpected border configuration encountered.")
-            except KeyError:  # got back to start and tried to remove same border again
-                boundaries.append(Boundary(boundary))
-        return boundaries
+
+                if border_piece == starting_border_piece:
+                    break
+
+                self.add_to_current_boundary(border_piece)
+
+            self.boundaries.append(Boundary(self.boundary))
+
+        return self.boundaries
 
 
 @timer
-def day_12b(grid: list[str]):
+def day_12b(grid: list[str]) -> int:
     farm = Farm.from_strings(grid, Plot)
-    unallocated_plots: set[Plot] = farm.plots
-
-    regions = []
-    while unallocated_plots:
-        region = find_region(unallocated_plots.copy())
-        regions.append(Region(region))
-        unallocated_plots -= region
-    mark_outer_border(farm)
+    regions = identify_regions(farm)
 
     for region in regions:
-        boundary_walker = BoundaryWalker(region, farm)
-        boundaries = boundary_walker.walk()
-        region.boundaries = boundaries
+        region.boundaries = BoundaryWalker(region, farm).walk()
 
-    return sum(region.area * region.sides for region in regions)
+    return sum(region.price_with_discount for region in regions)
 
 
 if __name__ == "__main__":

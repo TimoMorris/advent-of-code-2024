@@ -1,6 +1,5 @@
 from enum import Enum
 from math import lcm
-from typing import TypeAlias
 
 from parse import parse
 
@@ -14,7 +13,7 @@ class Result(Enum):
     CONTRADICTION = 3
 
 
-MachineConfiguration: TypeAlias = tuple[tuple[int, int], tuple[int, int], tuple[int, int]]
+type MachineConfiguration = tuple[tuple[int, int], tuple[int, int], tuple[int, int]]
 
 
 def get_day_13_input() -> list[MachineConfiguration]:

@@ -3,11 +3,11 @@
 Methods supporting finding neighbouring cells and getting all cells in the grid matching certain criteria.
 """
 
-from typing import Self, Type, TypeAlias, Iterable, Callable, Literal, TypeVar
+from typing import Self, Type, Iterable, Callable, Literal, TypeVar
 
-Coordinates: TypeAlias = tuple[int, int]
-SearchStrategy: TypeAlias = Literal["adjacent", "diagonal", "neighbouring"]
-CellFilter: TypeAlias = Callable[["Cell"], bool]
+type Coordinates = tuple[int, int]
+type SearchStrategy = Literal["adjacent", "diagonal", "neighbouring"]
+type CellFilter = Callable[["Cell"], bool]
 TValue = TypeVar("TValue", bound=int | str)
 
 STRAIGHT_VECTORS: list[Coordinates] = [(0, 1), (1, 0), (0, -1), (-1, 0)]  # clockwise from east

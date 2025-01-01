@@ -9,6 +9,7 @@ packages = [{include = "advent_of_code_2024"}]
 [tool.poetry.dependencies]
 python = "^3.13"
 pytest = "^8.3.4"
+parse = "^1.20.2"
 
 
 [build-system]
